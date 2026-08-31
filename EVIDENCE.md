@@ -196,7 +196,26 @@ docker compose exec db psql -U metering -d metering -c "SELECT tenant_id, COUNT(
 
 Date: 2026-08-31. 1002 = 1000 API + 2 token events, all tenant A. B is absent from that grouping. Isolation is the `tenant_id` filter on every usage query, not a second password.
 
+### Background snapshot job vs live SUM
 
+`python -m app.jobs.snapshot` photocopies `get_usage` into `usage_monthly_snapshots`. No `DRIFT` line. A matches live 1000 / 2000 / 100637. B is zeros. `GET /usage` is still the live tape, not this table.
+
+```
+python -m app.jobs.snapshot
+snapshotted 11111111-1111-1111-1111-111111111111 2026-08
+snapshotted 44444444-4444-4444-4444-444444444444 2026-08
+```
+
+```
+docker compose exec db psql -U metering -d metering -c "SELECT tenant_id, period_yyyy_mm, api_calls_used, tokens_used, cost_micro_usd FROM usage_monthly_snapshots ORDER BY tenant_id;"
+              tenant_id               | period_yyyy_mm | api_calls_used | tokens_used | cost_micro_usd
+--------------------------------------+----------------+----------------+-------------+----------------
+ 11111111-1111-1111-1111-111111111111 | 2026-08        |           1000 |        2000 |         100637
+ 44444444-4444-4444-4444-444444444444 | 2026-08        |              0 |           0 |              0
+(2 rows)
+```
+
+Date: 2026-08-31.
 
 ### README, diagram, setup; required pack files
 
