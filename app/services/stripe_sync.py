@@ -25,7 +25,9 @@ def _as_dict(obj) -> dict:
         return obj
     to_dict = getattr(obj, "to_dict", None)
     if callable(to_dict):
-        return to_dict()
+        result = to_dict()
+        if isinstance(result, dict):
+            return result
     raise TypeError(f"cannot convert {type(obj)} to dict")
 
 
