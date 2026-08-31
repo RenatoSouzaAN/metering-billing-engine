@@ -1,0 +1,26 @@
+name: metering-billing-engine
+language: python
+base_url: http://127.0.0.1:8000
+run: uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+migrate: alembic upgrade head
+seed: python -m app.seed
+job: python -m app.jobs.snapshot
+compose: docker compose up -d
+demo_tenant_id: "11111111-1111-1111-1111-111111111111"
+isolation_tenant_id: "44444444-4444-4444-4444-444444444444"
+headers:
+  tenant: X-Tenant-Id
+  idempotency: Idempotency-Key
+endpoints:
+  - GET /health
+  - GET /ready
+  - POST /generate
+  - GET /usage
+  - POST /checkout
+  - POST /webhooks/stripe
+probes:
+  - P1 idempotency
+  - P2 quota boundary 429 and 402
+  - P3 Stripe Checkout Free to Pro
+  - P4 forged signature and event replay
+  - P5 pinned token and API pricing

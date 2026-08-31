@@ -219,4 +219,6 @@ Date: 2026-08-31.
 
 ### README, diagram, setup; required pack files
 
-_Pending — Phase 4._
+`README.md` (what it does, mermaid, run/seed, Stripe CLI, honest limits). `capstone.yaml` (run, seed, job, base_url, endpoints, probes). `BUILDLOG.md` and `.env.example` (host port **5435**). Diagram is the mermaid block in the README.
+
+Date: 2026-08-31.

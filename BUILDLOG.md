@@ -37,3 +37,22 @@ Honesty is graded, not perfection. Each entry: where AI helped, where it was wro
 **What I own now**
 
 - Those are two different bugs: double-count a retry vs oversell the cap.
+
+## 2026-08-31 — Stripe Session.get and empty job module
+
+**Where AI helped**
+
+- Checkout + webhook shape, CLI `listen`, Probe 4 forge/replay.
+- Snapshot upsert using `get_usage` so cost math is not copied.
+
+**Where AI was wrong or jumped ahead**
+
+- Treated Stripe SDK `Session` as a dict (`.get`). First `checkout.session.completed` was 500. `/health?checkout=success` is not payment truth. Fix: `to_dict()` then apply.
+- Implemented and resent events without making me read the traceback first.
+- `python -m app.jobs.snapshot` with only `def snapshot_tenant` is a successful import. Zero rows until `if __name__ == "__main__": run()`.
+
+**What I own**
+
+- Demo header is still `X-Tenant-Id` for both tenants. Isolation is filters, not a second header name.
+- Job is a separate process. Cron is ops. Uvicorn does not start it.
+- Port 5435 on the host, not 5432.
