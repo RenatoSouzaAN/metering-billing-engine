@@ -169,7 +169,34 @@ Date: 2026-08-31. `construct_event` failed on the fake seal. `IntegrityError` on
 
 ### tenants, plans, subscriptions, usage_events; tenant isolation
 
-_Pending — schema + a cross-tenant query that returns nothing._
+Two tenants. Header `X-Tenant-Id` selects whose rows `GET /usage` sums. A is Pro with this month's events. B is Free with **zero** `usage_events` rows. `GROUP BY tenant_id` does not even list B.
+
+```
+python -m app.seed
+Seeded. HTTP header is always X-Tenant-Id.
+  tenant A: 11111111-1111-1111-1111-111111111111
+  tenant B: 44444444-4444-4444-4444-444444444444
+```
+
+```
+curl -s http://127.0.0.1:8000/usage -H "X-Tenant-Id: 11111111-1111-1111-1111-111111111111"
+{"tenant_id":"11111111-1111-1111-1111-111111111111","period":"2026-08","subscription_status":"active","api_calls":{"used":1000,"limit":10000},"ai_tokens":{"used":2000,"limit":1000000},"cost_micro_usd":100637}
+
+curl -s http://127.0.0.1:8000/usage -H "X-Tenant-Id: 44444444-4444-4444-4444-444444444444"
+{"tenant_id":"44444444-4444-4444-4444-444444444444","period":"2026-08","subscription_status":"active","api_calls":{"used":0,"limit":1000},"ai_tokens":{"used":0,"limit":100000},"cost_micro_usd":0}
+```
+
+```
+docker compose exec db psql -U metering -d metering -c "SELECT tenant_id, COUNT(*) FROM usage_events GROUP BY tenant_id;"
+              tenant_id               | count
+--------------------------------------+-------
+ 11111111-1111-1111-1111-111111111111 |  1002
+(1 row)
+```
+
+Date: 2026-08-31. 1002 = 1000 API + 2 token events, all tenant A. B is absent from that grouping. Isolation is the `tenant_id` filter on every usage query, not a second password.
+
+
 
 ### README, diagram, setup; required pack files
 
