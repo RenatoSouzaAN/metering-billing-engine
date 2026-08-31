@@ -114,11 +114,56 @@ Expected total: `1000*100` + `600` + `37` = **100637**. Matches `GET /usage` abo
 
 ### Checkout end-to-end in test mode
 
-_Pending — Probe 3._
+Test-mode Checkout for demo tenant `11111111-1111-1111-1111-111111111111`. First `checkout.session.completed` hit a 500 (`Session` is not a dict). After converting the payload with `to_dict()`, we resent `evt_1UAXjfDowGOJC2PgSeU4vrsI` (CLI forwarded HTTP 200). Plan flipped Free → Pro. Limits on `GET /usage` are 10000 / 1000000.
+
+```
+curl -s http://127.0.0.1:8000/usage -H "X-Tenant-Id: 11111111-1111-1111-1111-111111111111"
+{"tenant_id":"11111111-1111-1111-1111-111111111111","period":"2026-08","subscription_status":"active","api_calls":{"used":1000,"limit":10000},"ai_tokens":{"used":2000,"limit":1000000},"cost_micro_usd":100637}
+```
+
+```
+docker compose exec db psql -U metering -d metering -c "SELECT s.status, p.code, p.api_call_limit, p.token_limit FROM subscriptions s JOIN plans p ON p.id = s.plan_id;"
+ status | code | api_call_limit | token_limit
+--------+------+----------------+-------------
+ active | pro  |          10000 |     1000000
+(1 row)
+```
+
+Date: 2026-08-31. Payment truth was the webhook, not `/health?checkout=success`.
 
 ### Webhooks: verify, dedupe, update plan/status
 
-_Pending — Probe 4._
+Forged `Stripe-Signature` is rejected before `session.add`. Replay of the same real `evt_1UAXjfDowGOJC2PgSeU4vrsI` is HTTP 200 from the CLI forwarder; `processed_stripe_events` still has **one** row for that id. Plan stays Pro.
+
+```
+curl -i -X POST http://127.0.0.1:8000/webhooks/stripe -H "Stripe-Signature: t=1,v1=deadbeef" -H "Content-Type: application/json" -d "{\"type\":\"checkout.session.completed\"}"
+HTTP/1.1 400 Bad Request
+{"detail":"invalid stripe signature"}
+```
+
+```
+stripe events resend evt_1UAXjfDowGOJC2PgSeU4vrsI
+# CLI listen:
+# --> checkout.session.completed [evt_1UAXjfDowGOJC2PgSeU4vrsI]
+# <-- [200] POST http://localhost:8000/webhooks/stripe [evt_1UAXjfDowGOJC2PgSeU4vrsI]
+```
+
+```
+docker compose exec db psql -U metering -d metering -c "SELECT event_id, event_type FROM processed_stripe_events WHERE event_id = 'evt_1UAXjfDowGOJC2PgSeU4vrsI';"
+           event_id           |         event_type
+------------------------------+----------------------------
+ evt_1UAXjfDowGOJC2PgSeU4vrsI | checkout.session.completed
+(1 row)
+```
+
+```
+curl -s http://127.0.0.1:8000/usage -H "X-Tenant-Id: 11111111-1111-1111-1111-111111111111"
+{"tenant_id":"11111111-1111-1111-1111-111111111111","period":"2026-08","subscription_status":"active","api_calls":{"used":1000,"limit":10000},"ai_tokens":{"used":2000,"limit":1000000},"cost_micro_usd":100637}
+```
+
+Date: 2026-08-31. `construct_event` failed on the fake seal. `IntegrityError` on `flush` of the already-committed id made the replay a no-op.
+
+
 
 ## Data model, tests & documentation
 
