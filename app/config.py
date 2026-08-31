@@ -7,5 +7,9 @@ class Settings(BaseSettings):
     input_micro_usd_per_million: int = 150_000
     cached_input_micro_usd_per_million: int = 37_500
     output_micro_usd_per_million: int = 600_000
+    stripe_secret_key: str
+    stripe_webhook_secret: str
+    stripe_price_pro: str
+    app_base_url: str = "http://localhost:8000"
 
 settings = Settings()

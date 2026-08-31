@@ -1,12 +1,13 @@
-from datetime import datetime, timezone, tzinfo
+from datetime import datetime, timezone
 from uuid import UUID
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.db import SessionLocal
 from app.schemas import GenerateRequest
 from app.services.meter import MeterError, get_usage, record_generate
+from app.services.stripe_sync import create_checkout_url, handle_webhook
 
 app = FastAPI(title="metering-billing-engine")
 
@@ -67,3 +68,23 @@ def usage(x_tenant_id: UUID = Header(..., alias="X-Tenant-ID")):
         except MeterError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail)
         return payload
+
+@app.post("/checkout")
+def checkout(x_tenant_id: UUID = Header(..., alias="X-Tenant-ID")):
+    with SessionLocal() as session:
+        try:
+            url = create_checkout_url(session, x_tenant_id)
+        except MeterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+        return {"url": url}
+
+@app.post("/webhooks/stripe")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature")
+    with SessionLocal() as session:
+        try:
+            result = handle_webhook(session, payload, signature)
+        except MeterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+        return result

@@ -1,5 +1,6 @@
 import uuid
 
+from app.config import settings
 from app.db import SessionLocal
 from app.models import Plan, Subscription, Tenant
 
@@ -44,6 +45,9 @@ def seed() -> None:
                     status="active",
                 )
             )
+        pro = session.get(Plan, PLAN_PRO_ID)
+        if pro is not None and "REPLACE_ME" not in settings.stripe_price_pro:
+            pro.stripe_price_id = settings.stripe_price_pro
         session.commit()
         print(f"Seeded. Demo X-Tenant-Id: {TENANT_ID}")
 
